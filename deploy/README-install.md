@@ -2,53 +2,65 @@
 
 ## Linux server
 
-Requires kernel `usbip_host` module and the `usbip` userspace tool. On Ubuntu/Debian:
+### Prerequisites
+
+The kernel `usbip_host` module and the `usbip` / `usbipd` userspace tools. On Ubuntu/Debian:
 
 ```bash
 sudo apt install linux-tools-generic hwdata
-sudo modprobe usbip_host
-which usbip   # should resolve, typically /usr/bin/usbip
+which usbip usbipd      # should resolve, typically /usr/bin/usbip and /usr/bin/usbipd
 ```
 
-Build and deploy the server:
+### Install as a service (starts automatically on every boot)
+
+Two systemd units are involved — `usbipd.service` (the USB/IP daemon; also loads the
+`usbip_host` module) and `usbethusb-server.service` (the .NET gRPC server, which depends on it).
+The `install-server.sh` script handles the whole thing:
 
 ```bash
-dotnet publish src/UsbEthUsb.Server -c Release -r linux-x64 --self-contained -o publish/server
-sudo mkdir -p /opt/usbethusb
-sudo cp -r publish/server/* /opt/usbethusb/
-sudo cp deploy/usbethusb-server.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now usbethusb-server
-sudo systemctl status usbethusb-server
+./publish.sh                 # build the server  ->  publish/server/
+deploy/install-server.sh     # install + enable + start (auto-elevates with sudo)
 ```
 
-Default gRPC port: **5557** (configure in `appsettings.json` or `Server__Port` env var).
+`install-server.sh` copies the build to `/opt/usbethusb`, installs both systemd units, enables
+and starts them, and opens TCP 5557 + 3240 in `ufw` if it is present. After a reboot the services
+come back on their own, in order.
 
-Open the firewall if needed:
+**Update** an existing install — rebuild and re-run (the script stops, replaces, and restarts):
 
 ```bash
-sudo ufw allow 5557/tcp
+./publish.sh && deploy/install-server.sh
 ```
 
-At startup the server runs a preflight check (logged at `Information`/`Error` level): it verifies
-the `usbip` CLI, loads the `usbip_host` kernel module if missing, and starts `usbipd` if it isn't
-already listening on TCP **3240**. The module load and daemon start only succeed when the server
-runs **as root** (the systemd unit does). If you run it unprivileged for development, do these
-once yourself:
+**Uninstall** — removes both units and `/opt/usbethusb`:
 
 ```bash
-sudo modprobe usbip_host
-echo usbip_host | sudo tee /etc/modules-load.d/usbip.conf   # persist across reboots
-sudo usbipd -D                                              # or: sudo systemctl enable --now usbipd
+deploy/uninstall-server.sh
 ```
 
-`usbipd` listens on TCP **3240**. That port also needs to be open to the LAN.
+Useful commands: `journalctl -u usbethusb-server -f` (live logs),
+`systemctl status usbipd usbethusb-server`, `sudo systemctl restart usbethusb-server`.
+
+Default gRPC port: **5557** (override in `appsettings.json`, or set `Server__Port` in the unit's
+`[Service]` section). The server also runs a startup preflight that logs the state of the `usbip`
+CLI, the kernel module, and `usbipd`.
 
 ## Windows client
 
-Requires [usbip-win2](https://github.com/vadimgrn/usbip-win2) installed (provides the `vhci` driver
-and `usbip.exe`). If `usbip.exe` is not on `PATH`, the tray app's
-**Settings → Set usbip.exe path…** lets you point at it; the path is saved to config.
+### Prerequisite: install usbip-win2 first
+
+The client cannot attach anything on its own — it drives **usbip-win2**, which supplies the `vhci`
+virtual-USB driver and `usbip.exe`. Install it on the Windows machine **before** running the
+client:
+
+1. Download the latest installer (`USBip-<version>-x64.exe`) from the
+   [**usbip-win2 releases page**](https://github.com/vadimgrn/usbip-win2/releases).
+2. Run it. usbip-win2's `vhci` is a kernel driver — its own README covers any driver-signing /
+   test-signing your Windows build requires.
+3. Check it: run `usbip --version` in a terminal. If `usbip.exe` is not on `PATH`, the tray app's
+   **Settings → Set usbip.exe path…** lets you point at it (the path is saved to config).
+
+Without usbip-win2, attach fails — the client has no way to create the virtual USB device.
 
 ### Building the client
 
@@ -76,10 +88,32 @@ dotnet publish src/UsbEthUsb.Client/UsbEthUsb.Client.csproj \
   -c Release -r win-x64 --self-contained -o publish/client
 ```
 
-Copy `publish/client/` to the Windows machine and run `UsbEthUsb.Client.exe`. It runs as the
-invoking user — usbip-win2's attach/detach do not require elevation, so there is no UAC prompt.
-Auto-start at login can be added via a shortcut in the user's Startup folder or a
-`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` registry entry — neither is configured
-automatically in v1.
+The client runs as the invoking user — usbip-win2's attach/detach do not require elevation, so
+there is no UAC prompt. Config lives at `%APPDATA%\UsbEthUsb\config.json`.
 
-Config file lives at `%APPDATA%\UsbEthUsb\config.json`.
+### Packaging a Windows installer
+
+`deploy/windows-installer.iss` is an [Inno Setup](https://jrsoftware.org/isdl.php) script that
+wraps the published client into a friendly `Setup.exe`. Build it **on Windows**:
+
+1. Install **Inno Setup 6.3+**.
+2. Publish the client to `publish\client\` (the command above).
+3. Compile the script:
+
+   ```
+   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" deploy\windows-installer.iss
+   ```
+
+   (or open the `.iss` in the Inno Setup IDE and press Build).
+
+This produces **`publish\UsbEthUsb-Client-Setup.exe`**. The installer:
+
+- checks for usbip-win2 at startup and, if it isn't detected, offers to open the download page
+  (a warning, not a hard block — a custom install path could be missed);
+- is **per-user** — installs to `%LOCALAPPDATA%\Programs\UsbEthUsb`, no admin/UAC;
+- adds a Start Menu shortcut, and optionally a "start at sign-in" entry (a checkbox in the wizard);
+- closes a running instance automatically on upgrade (Restart Manager), so a locked `.exe` never
+  blocks the update;
+- registers a clean uninstaller (Settings → Apps, or the Start Menu entry).
+
+User config in `%APPDATA%\UsbEthUsb\config.json` is left in place on uninstall.

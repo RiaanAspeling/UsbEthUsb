@@ -1,0 +1,17 @@
+[Unit]
+Description=USB/IP host daemon (usbipd)
+Documentation=man:usbipd(8)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# usbip bind/unbind needs the usbip-host driver.
+ExecStartPre=/sbin/modprobe usbip_host
+# Run usbipd in the foreground (no -D) so systemd owns its lifecycle.
+ExecStart=/usr/bin/usbipd
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

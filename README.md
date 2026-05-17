@@ -14,6 +14,18 @@ The .NET code is the control plane: device discovery, bind/unbind, attach/detach
 The actual USB/IP traffic flows kernel-to-kernel between the two machines on TCP/3240, untouched
 by this app.
 
+## Requirements
+
+**Linux server** — the `usbip`/`usbipd` userspace tools and the `usbip_host` kernel module
+(`sudo apt install linux-tools-generic hwdata` on Ubuntu/Debian).
+
+**Windows client** — [**usbip-win2**](https://github.com/vadimgrn/usbip-win2) **must be installed
+before the client can attach anything.** It supplies the `vhci` virtual-USB driver and `usbip.exe`,
+which the client drives. Download the latest installer (`USBip-<version>-x64.exe`) from the
+[**usbip-win2 releases page**](https://github.com/vadimgrn/usbip-win2/releases) and run it — its
+README covers any Windows driver-signing steps. Without it, attach fails: the client has no way to
+create the virtual USB device.
+
 ## Layout
 
 ```
@@ -22,7 +34,7 @@ UsbEthUsb.sln
 │   ├── UsbEthUsb.Shared/        # owns the gRPC schema (.proto)
 │   ├── UsbEthUsb.Server/        # Linux daemon — ASP.NET Core gRPC on :5557
 │   └── UsbEthUsb.Client/        # Windows tray app (WinForms, net8.0-windows)
-└── deploy/                       # systemd unit + install notes
+└── deploy/                       # install scripts, systemd units, Windows installer
 ```
 
 `UsbEthUsb.Shared` is a tiny library that owns `Protos/UsbDeviceService.proto`. Both the Server
@@ -79,7 +91,39 @@ dotnet publish src/UsbEthUsb.Client/UsbEthUsb.Client.csproj \
   -c Release -r win-x64 --self-contained -o publish/client
 ```
 
-Copy `publish/client/` to the Windows machine and run `UsbEthUsb.Client.exe`.
+Or run `./publish.sh` to publish both the server (`publish/server/`, linux-x64) and the client
+(`publish/client/`, win-x64) in one step.
+
+## Install
+
+Full step-by-step detail — firewall, troubleshooting, the SDK setup above — is in
+[`deploy/README-install.md`](deploy/README-install.md). The short version:
+
+### Linux server
+
+```bash
+./publish.sh                 # builds publish/server/
+deploy/install-server.sh     # installs + enables the systemd services (auto-elevates via sudo)
+```
+
+This installs two units — `usbipd.service` and `usbethusb-server.service` — and enables them so
+they start on every boot, and opens TCP 5557 + 3240 in `ufw`. Re-run both commands to update;
+`deploy/uninstall-server.sh` removes everything.
+
+### Windows client
+
+Install [**usbip-win2**](https://github.com/vadimgrn/usbip-win2/releases) first (see
+[Requirements](#requirements)). Then build the installer — on Windows, with
+[Inno Setup 6.3+](https://jrsoftware.org/isdl.php) installed:
+
+```
+dotnet publish src\UsbEthUsb.Client\UsbEthUsb.Client.csproj -c Release -r win-x64 --self-contained -o publish\client
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" deploy\windows-installer.iss
+```
+
+Run the resulting **`publish\UsbEthUsb-Client-Setup.exe`** — a per-user install (no admin) that
+adds a Start Menu shortcut and an optional "start at sign-in" entry. Or skip the installer
+entirely: copy `publish\client\` anywhere and run `UsbEthUsb.Client.exe`.
 
 ## v1 scope
 
