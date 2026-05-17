@@ -96,7 +96,10 @@ Or run `./publish.sh` to publish both the server (`publish/server/`, linux-x64) 
 
 ## Install
 
-Full step-by-step detail — firewall, troubleshooting, the SDK setup above — is in
+**Pre-built downloads** are on the
+[Releases page](https://github.com/RiaanAspeling/UsbEthUsb/releases) — the Windows installer and a
+Linux server tarball, each with install instructions. The steps below build from source instead;
+full detail (firewall, troubleshooting, SDK setup) is in
 [`deploy/README-install.md`](deploy/README-install.md). The short version:
 
 ### Linux server
@@ -124,6 +127,18 @@ dotnet publish src\UsbEthUsb.Client\UsbEthUsb.Client.csproj -c Release -r win-x6
 Run the resulting **`publish\UsbEthUsb-Client-Setup.exe`** — a per-user install (no admin) that
 adds a Start Menu shortcut and an optional "start at sign-in" entry. Or skip the installer
 entirely: copy `publish\client\` anywhere and run `UsbEthUsb.Client.exe`.
+
+## Releasing (maintainers)
+
+1. Build the Windows installer on Windows (`deploy/windows-installer.iss`) and copy it to
+   `publish/UsbEthUsb-Client-Setup.exe`.
+2. From the repo root: `./release.sh v1.2.3`
+
+`release.sh` builds the server, packages it into `usbethusb-server-<tag>-linux-x64.tar.gz`
+(bundling the install scripts, systemd units and a README), and publishes a GitHub release with
+both that tarball and the installer. It uses the [GitHub CLI](https://cli.github.com)
+(`sudo apt install gh && gh auth login`); without `gh` it still builds the tarball and prints the
+manual-upload steps.
 
 ## v1 scope
 

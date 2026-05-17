@@ -15,10 +15,16 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 SCRIPT_DIR="$(dirname "$SELF")"
-REPO="$(dirname "$SCRIPT_DIR")"
-PUBLISH="$REPO/publish/server"
 INSTALL_DIR="/opt/usbethusb"
 UNIT_DIR="/etc/systemd/system"
+
+# Locate the published server. A release tarball keeps it at ./server next to
+# this script; a repo checkout keeps it at ../publish/server.
+if [[ -x "$SCRIPT_DIR/server/UsbEthUsb.Server" ]]; then
+    PUBLISH="$SCRIPT_DIR/server"
+else
+    PUBLISH="$(dirname "$SCRIPT_DIR")/publish/server"
+fi
 
 echo "==> UsbEthUsb server install"
 
