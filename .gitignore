@@ -1,0 +1,26 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+## Build artifacts
+publish/
+out/
+*.binlog
+
+## IDE
+.idea/
+.vscode/
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Generated icon preview (regenerate with tools/make-icon.py)
+tools/icon-preview.png
+
+## Local secrets
+appsettings.Local.json
+*.local.json

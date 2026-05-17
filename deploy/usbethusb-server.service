@@ -1,0 +1,20 @@
+[Unit]
+Description=UsbEthUsb gRPC server (exports USB devices over the network via usbip)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/usbethusb/UsbEthUsb.Server
+Restart=on-failure
+RestartSec=5
+# usbip bind/unbind requires root; revisit privilege separation in v2.
+User=root
+WorkingDirectory=/opt/usbethusb
+# Ensure the usbip_host kernel module is loaded before we start.
+ExecStartPre=/sbin/modprobe usbip_host
+# Optional: pin the gRPC port via environment instead of appsettings.json.
+# Environment=Server__Port=5557
+
+[Install]
+WantedBy=multi-user.target

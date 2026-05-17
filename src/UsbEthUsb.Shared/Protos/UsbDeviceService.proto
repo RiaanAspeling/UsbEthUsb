@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+option csharp_namespace = "UsbEthUsb.Protocol";
+
+package usbethusb.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service UsbDeviceService {
+  rpc ListDevices(google.protobuf.Empty) returns (DeviceList);
+  rpc BindDevice(BusIdRequest) returns (BindResponse);
+  rpc UnbindDevice(BusIdRequest) returns (UnbindResponse);
+  rpc StreamEvents(google.protobuf.Empty) returns (stream DeviceEvent);
+}
+
+message Device {
+  string bus_id = 1;
+  uint32 vendor_id = 2;
+  uint32 product_id = 3;
+  string vendor_name = 4;
+  string product_name = 5;
+  string speed = 6;
+  bool is_exported = 7;
+}
+
+message DeviceList {
+  repeated Device devices = 1;
+  google.protobuf.Timestamp captured_at = 2;
+}
+
+message BusIdRequest {
+  string bus_id = 1;
+}
+
+message BindResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message UnbindResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message DeviceEvent {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    DEVICE_ADDED = 1;
+    DEVICE_REMOVED = 2;
+    EXPORT_STATE_CHANGED = 3;
+  }
+  Kind kind = 1;
+  Device device = 2;
+  google.protobuf.Timestamp at = 3;
+}
