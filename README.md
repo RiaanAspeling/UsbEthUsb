@@ -14,6 +14,11 @@ The .NET code is the control plane: device discovery, bind/unbind, attach/detach
 The actual USB/IP traffic flows kernel-to-kernel between the two machines on TCP/3240, untouched
 by this app.
 
+![The UsbEthUsb tray client on Windows](Images/WindowsTray.png)
+
+*The Windows tray client — each device is a click-to-toggle entry, shown bold and checked when
+it is attached to this PC (here, the Logitech webcam).*
+
 ## Requirements
 
 **Linux server** — the `usbip`/`usbipd` userspace tools and the `usbip_host` kernel module
